@@ -1,3 +1,4 @@
+from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, HttpResponseNotFound
 from django.urls import reverse_lazy
@@ -37,7 +38,11 @@ class WomenHome(DataMixin, ListView):
 
 
 def about(request):
-    return render(request, 'women/about.html', {'menu': menu, 'title': 'О сайте'})
+    contact_list = Women.objects.all()
+    paginator = Paginator(contact_list, 3)
+    page_number = request.GET.get('page')
+    page_object = paginator.get_page(page_number)
+    return render(request, 'women/about.html', {'page_obj': page_object, 'menu': menu, 'title': 'О сайте'})
 
 class AddPage(LoginRequiredMixin, DataMixin, CreateView):
     form_class = AddPostForm
@@ -107,16 +112,12 @@ class WomenCategory(DataMixin, ListView):
     def get_queryset(self):
         return Women.objects.filter(cat__slug=self.kwargs['cat_slug'], is_published=True).order_by('-time_update')
 
-# def show_category(request, cat_slug):
-#     cat = Category.objects.get(slug=cat_slug)
-#     cat_id = cat.id
-#     posts = Women.objects.filter(cat=cat_id)
-#     if len(posts) == 0:
-#         raise Http404()
-#     context = {
-#         'posts': posts,
-#         'menu': menu,
-#         'title': 'Отображение по рубрикам',
-#         'cat_selected': cat_id
-#     }
-#     return render(request, 'women/index.html', context=context)
+class RegisterUser(DataMixin, CreateView):
+    form_class = RegisterUserForm
+    template_name = 'women/register.html'
+    success_url = reverse_lazy('login')
+
+    def get_context_data(self, *, object_list=None, **kwargs):
+        context = super().get_context_data(**kwargs)
+        c_def = self.get_user_context(title='Регистрация')
+        return dict(list(context.items()) + list(c_def.items()))
