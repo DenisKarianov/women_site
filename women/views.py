@@ -1,3 +1,5 @@
+from django.contrib.auth import logout, login
+from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, HttpResponseNotFound
@@ -24,17 +26,7 @@ class WomenHome(DataMixin, ListView):
         return dict(list(context.items()) + list(c_def.items()))
 
     def get_queryset(self):
-        return Women.objects.filter(is_published=True).order_by('-time_update')
-
-# def index(request):
-#     posts = Women.objects.all()
-#     context = {
-#         'posts': posts,
-#         'menu': menu,
-#         'title': 'Главная страница',
-#         'cat_selected': 0,
-#     }
-#     return render(request, 'women/index.html', context=context)
+        return Women.objects.filter(is_published=True).select_related('cat')
 
 
 def about(request):
@@ -55,22 +47,12 @@ class AddPage(LoginRequiredMixin, DataMixin, CreateView):
         c_def = self.get_user_context(title="Добавление статьи")
         return dict(list(context.items()) + list(c_def.items()))
 
-# def addpage(request):
-#     if request.method == 'POST':
-#         form = AddPostForm(request.POST, request.FILES)
-#         if form.is_valid():
-#             form.save()
-#             return redirect('home')
-#     else:
-#         form = AddPostForm()
-#     return render(request, 'women/addpage.html', {'form': form, 'menu': menu, 'title': "Добавление статьи"})
-
 
 def contact(request):
     return HttpResponse("Обратная связь")
 
-def login(request):
-    return HttpResponse("Авторизация")
+# def login(request):
+#     return HttpResponse("Авторизация")
 
 
 def pageNotFound(request, exception):
@@ -105,12 +87,13 @@ class WomenCategory(DataMixin, ListView):
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
-        c_def = self.get_user_context(title='Категория - ' + str(context['posts'][0].cat),
-                                      cat_selected = context['posts'][0].cat_id)
+        c = Category.objects.get(slug=self.kwargs['cat_slug'])
+        c_def = self.get_user_context(title='Категория - ' + str(c.name),
+                                      cat_selected = c.pk)
         return dict(list(context.items()) + list(c_def.items()))
 
     def get_queryset(self):
-        return Women.objects.filter(cat__slug=self.kwargs['cat_slug'], is_published=True).order_by('-time_update')
+        return Women.objects.filter(cat__slug=self.kwargs['cat_slug'], is_published=True).select_related('cat')
 
 class RegisterUser(DataMixin, CreateView):
     form_class = RegisterUserForm
@@ -121,3 +104,26 @@ class RegisterUser(DataMixin, CreateView):
         context = super().get_context_data(**kwargs)
         c_def = self.get_user_context(title='Регистрация')
         return dict(list(context.items()) + list(c_def.items()))
+
+    def form_valid(self, form):
+        user = form.save()
+        login(self.request, user)
+        return redirect('home')
+
+
+class LoginUser(DataMixin, LoginView):
+    form_class = LoginUserForm
+    template_name = 'women/login.html'
+
+    def get_context_data(self, *, object_list=None, **kwargs):
+        context = super().get_context_data(**kwargs)
+        c_def = self.get_user_context(title='Авторизация')
+        return dict(list(context.items()) + list(c_def.items()))
+
+    def get_success_url(self):
+        return reverse_lazy('home')
+
+
+def logout_user(request):
+    logout(request)
+    return redirect('login')
